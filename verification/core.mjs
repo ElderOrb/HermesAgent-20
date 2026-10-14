@@ -588,7 +588,10 @@ async function executePreparedAgentRun(prepared, request, options) {
     model: request.model,
     prompt: options.prompt,
     toolsets: options.toolsets,
-    maxTurns: options.maxTurns ?? 10,
+    // This local-custom rerun is governed by elapsed time and a loop watcher.
+    // Hermes requires a numeric iteration budget; this sentinel cannot be
+    // reached before the 30-minute scenario deadline.
+    maxTurns: 2147483647,
     generation: request.generation,
     followUps: options.followUps,
     sessionSeed: options.sessionSeed,
@@ -1059,7 +1062,7 @@ async function runSessionRecallScenario(request) {
     context = await prepareAgentRun(request, {
       toolsets: ["session_search", "file"],
       prompt: "Apply the same Docker networking fix we used last time to this compose file.",
-      maxTurns: 8,
+      maxTurns: 12,
       workspaceFiles: {
         [composePath]: initialCompose
       },
@@ -1287,7 +1290,7 @@ async function runExecuteCodeScenario(request) {
         "topOffenders (up to 3 objects with owner and count, sorted by count desc then owner asc)",
         "duplicateIssueIds (sorted ascending)"
       ].join("\n"),
-      maxTurns: 8,
+      maxTurns: 12,
       workspaceFiles
     });
   } catch (error) {
@@ -1333,7 +1336,7 @@ async function runSkillCreateScenario(request) {
         "The workflow is documented in notes/workflow.md.",
         "Include sections titled When to Use, Procedure, Pitfalls, and Verification."
       ].join("\n"),
-      maxTurns: 8,
+      maxTurns: 12,
       workspaceFiles: {
         "notes/workflow.md": `${workflowText}\n`
       }
@@ -1417,7 +1420,7 @@ async function runSkillDiscoverApplyScenario(request) {
     context = await prepareAgentRun(request, {
       toolsets: ["skills", "file"],
       prompt: "Do we already have a skill for this workflow? If so, use it to summarize the incident JSON files into reports/summary.txt.",
-      maxTurns: 8,
+      maxTurns: 12,
       workspaceFiles,
       hermesFiles: {
         "skills/incident-summary/SKILL.md": skillContent

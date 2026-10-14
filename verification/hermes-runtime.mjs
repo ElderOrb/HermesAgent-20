@@ -180,7 +180,9 @@ async function writeHermesConfig(hermesHomeDir, workspaceDir, model, maxTurns, o
     '  mode: "manual"',
     "  timeout: 30",
     "agent:",
-    `  max_turns: ${maxTurns}`
+    `  max_turns: ${maxTurns}`,
+    "delegation:",
+    "  max_iterations: 2147483647"
   );
 
   if (options.browserAllowPrivateUrls || options.browserCommandTimeout) {
