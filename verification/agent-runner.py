@@ -69,6 +69,8 @@ def _request_overrides(generation: Dict[str, Any]) -> Dict[str, Any]:
         "min_p",
         "repetition_penalty",
         "max_tokens",
+        "reasoning_effort",
+        "extra_body",
     ):
         value = generation.get(key)
         if value is not None:
