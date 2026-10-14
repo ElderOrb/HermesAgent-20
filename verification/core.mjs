@@ -1009,7 +1009,7 @@ async function runMemoryNearCapacityScenario(request) {
   const entries = splitMemoryEntries(memoryContent);
   const containsAllFacts = [
     memoryContent.includes("api-staging.internal"),
-    /(?:^|[^0-9])2(?:[^0-9]|$)/.test(memoryContent) && /canary/i.test(memoryContent),
+    /(?:\b2\b|\btwo\b)/i.test(memoryContent) && /canary/i.test(memoryContent),
     /digest/i.test(memoryContent) && /(not tag|not the tag)/i.test(memoryContent)
   ].every(Boolean);
   const withinLimit = memoryContent.length <= MEMORY_LIMIT;
