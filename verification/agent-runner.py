@@ -178,6 +178,26 @@ def main() -> int:
     os.environ["HERMES_HOME"] = str(Path(request["hermesHomeDir"]).resolve())
     os.environ["HERMES_WRITE_SAFE_ROOT"] = str(Path(request["workspaceDir"]).resolve())
     os.environ["HERMES_INTERACTIVE"] = "1"
+    # The verifier starts Node through a login shell, which can replace PATH
+    # with the system default. Make terminal commands resolve the same Python
+    # environment that launched this runner and that the verifier uses.
+    # Do not resolve this path: virtualenv's python is a symlink to the base
+    # interpreter, while its containing bin directory is the PATH entry that
+    # exposes pytest and the other verifier-installed console tools.
+    runner_bin_dir = str(Path(sys.executable).parent)
+    current_path = os.environ.get("PATH", "")
+    if runner_bin_dir not in current_path.split(os.pathsep):
+        os.environ["PATH"] = os.pathsep.join(
+            entry for entry in (runner_bin_dir, current_path) if entry
+        )
+    # LocalEnvironment snapshots a *login* shell before the first terminal
+    # call. /etc/profile resets PATH there, so give the isolated subprocess
+    # home a profile that restores the verifier venv for every terminal turn.
+    terminal_home = Path(os.environ["HERMES_HOME"]) / "home"
+    terminal_home.mkdir(parents=True, exist_ok=True)
+    (terminal_home / ".bash_profile").write_text(
+        f'export PATH="{runner_bin_dir}:$PATH"\n', encoding="utf-8"
+    )
 
     session_id = str(request.get("sessionId") or uuid.uuid4())
     os.environ["HERMES_SESSION_KEY"] = session_id
