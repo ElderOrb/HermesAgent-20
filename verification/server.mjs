@@ -76,6 +76,9 @@ const server = http.createServer(async (request, response) => {
   }
 });
 
+server.requestTimeout = 0;
+server.headersTimeout = 0;
+
 server.listen(DEFAULT_PORT, "0.0.0.0", () => {
   console.log(`HermesAgent-20 verifier listening on http://0.0.0.0:${DEFAULT_PORT}`);
 });
