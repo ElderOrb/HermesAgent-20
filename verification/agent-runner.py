@@ -292,10 +292,15 @@ def main() -> int:
         model = request.get("model") or {}
         inference_base_url = str(model.get("inferenceBaseUrl") or "")
         provider = _guess_provider(inference_base_url, str(model.get("provider") or ""))
+        api_key = (
+            model.get("apiKey")
+            or os.environ.get("OPENROUTER_API_KEY")
+            or os.environ.get("OPENAI_API_KEY")
+        )
 
         agent = AIAgent(
             base_url=inference_base_url,
-            api_key=model.get("apiKey"),
+            api_key=api_key,
             provider=provider,
             model=str(model.get("exposedModel") or model.get("providerModel") or ""),
             max_iterations=int(request.get("maxTurns") or 10),

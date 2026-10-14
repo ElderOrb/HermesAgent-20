@@ -60,7 +60,8 @@ const server = http.createServer(async (request, response) => {
         scenarioId: payload.scenarioId,
         runId: typeof payload.runId === "string" && payload.runId ? payload.runId : "adhoc",
         model: payload.model,
-        generation: payload.generation && typeof payload.generation === "object" ? payload.generation : {}
+        generation: payload.generation && typeof payload.generation === "object" ? payload.generation : {},
+        artifactDir: typeof payload.artifactDir === "string" && payload.artifactDir ? payload.artifactDir : undefined
       });
       sendJson(response, 200, result);
       return;

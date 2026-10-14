@@ -345,13 +345,15 @@ export async function executeHermesAgentRun(request) {
   const stdoutPath = path.join(request.runDir, "agent-runner-stdout.txt");
   const stderrPath = path.join(request.runDir, "agent-runner-stderr.txt");
   const providerEnv = buildHermesProviderEnv(request.model);
+  const artifactModel = { ...request.model };
+  delete artifactModel.apiKey;
 
   await mkdir(request.runDir, { recursive: true });
   await mkdir(request.workspaceDir, { recursive: true });
   await writeHermesConfig(
     hermesHomeDir,
     request.workspaceDir,
-    request.model,
+    artifactModel,
     request.maxTurns,
     {
       auxiliaryTasks: request.auxiliaryTasks,
@@ -364,7 +366,7 @@ export async function executeHermesAgentRun(request) {
     workspaceDir: request.workspaceDir,
     hermesHomeDir,
     prompt: request.prompt,
-    model: request.model,
+    model: artifactModel,
     toolsets: request.toolsets,
     maxTurns: request.maxTurns,
     resultPath,

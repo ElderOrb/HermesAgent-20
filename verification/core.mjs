@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { once } from "node:events";
 import path from "node:path";
 import { createServer as createNetServer } from "node:net";
@@ -174,6 +174,29 @@ function buildRuntimeFailure(scenarioId, startedAt, rawLog, detail) {
     rawLog: rawLog.join("\n"),
     timings: buildTimings(startedAt)
   };
+}
+
+async function preserveRunArtifacts(runDir, artifactDir) {
+  if (!artifactDir || typeof artifactDir !== "string") {
+    return undefined;
+  }
+
+  const resolvedArtifactDir = path.resolve(artifactDir);
+  await rm(resolvedArtifactDir, { recursive: true, force: true });
+  await mkdir(path.dirname(resolvedArtifactDir), { recursive: true });
+  await cp(runDir, resolvedArtifactDir, {
+    recursive: true,
+    force: true,
+    errorOnExist: false
+  });
+  await runCommand("chmod", ["-R", "a+rX", resolvedArtifactDir], {
+    timeoutMs: 30 * 1000
+  });
+  return resolvedArtifactDir;
+}
+
+function appendArtifactDetail(detail, artifactDir) {
+  return artifactDir ? `${detail}\nartifact_dir=${artifactDir}` : detail;
 }
 
 async function writeFiles(baseDir, files) {
@@ -617,7 +640,24 @@ async function executePreparedAgentRun(prepared, request, options) {
 
 async function prepareAgentRun(request, options) {
   const prepared = await prepareRunContext(request, options);
-  return executePreparedAgentRun(prepared, request, options);
+  try {
+    const completed = await executePreparedAgentRun(prepared, request, options);
+    const artifactDir = await preserveRunArtifacts(completed.runDir, request.artifactDir);
+    if (artifactDir) {
+      completed.rawLog.push(`artifact_dir=${artifactDir}`);
+    }
+    return completed;
+  } catch (error) {
+    let artifactDir;
+    try {
+      artifactDir = await preserveRunArtifacts(prepared.runDir, request.artifactDir);
+    } catch (artifactError) {
+      prepared.rawLog.push(`artifact_preserve_error=${artifactError instanceof Error ? artifactError.message : String(artifactError)}`);
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(appendArtifactDetail(message, artifactDir));
+  }
 }
 
 function incidentSummary(records) {
@@ -1655,6 +1695,10 @@ async function runCronUpdateScenario(request) {
       env,
       generation: request.generation
     });
+    const artifactDir = await preserveRunArtifacts(context.runDir, request.artifactDir);
+    if (artifactDir) {
+      context.rawLog.push(`artifact_dir=${artifactDir}`);
+    }
   } catch (error) {
     return buildRuntimeFailure(request.scenarioId, startedAt, [], error instanceof Error ? error.message : String(error));
   }
@@ -1714,6 +1758,10 @@ async function runCronRunDeliveryScenario(request) {
       env
     });
     await runCronTick(context.runtime, context.workspaceDir, context.hermesHomeDir, env);
+    const artifactDir = await preserveRunArtifacts(context.runDir, request.artifactDir);
+    if (artifactDir) {
+      context.rawLog.push(`artifact_dir=${artifactDir}`);
+    }
   } catch (error) {
     await fakeHass.close();
     return buildRuntimeFailure(request.scenarioId, startedAt, [], error instanceof Error ? error.message : String(error));
