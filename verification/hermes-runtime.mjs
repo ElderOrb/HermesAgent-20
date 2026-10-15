@@ -63,7 +63,10 @@ export function runCommand(file, args, options = {}) {
 
     const abortListener = () => {
       child.kill("SIGTERM");
-      finish(() => reject(new Error(`Command aborted: ${commandLabel(file, args)}`)));
+      const abortError = new Error(`Command aborted: ${commandLabel(file, args)}`);
+      abortError.capturedStdout = stdout;
+      abortError.capturedStderr = stderr;
+      finish(() => reject(abortError));
     };
 
     if (options.signal) {
@@ -77,7 +80,10 @@ export function runCommand(file, args, options = {}) {
     if (options.timeoutMs && options.timeoutMs > 0) {
       timeout = setTimeout(() => {
         child.kill("SIGTERM");
-        finish(() => reject(new Error(`Command timed out after ${options.timeoutMs}ms: ${commandLabel(file, args)}`)));
+        const timeoutError = new Error(`Command timed out after ${options.timeoutMs}ms: ${commandLabel(file, args)}`);
+        timeoutError.capturedStdout = stdout;
+        timeoutError.capturedStderr = stderr;
+        finish(() => reject(timeoutError));
       }, options.timeoutMs);
     }
 
@@ -270,19 +276,28 @@ export async function executeHermesQuietQuery(request) {
     request.model.exposedModel
   ];
 
-  const result = await runCommand(request.runtime.hermesBin, args, {
-    cwd: request.workspaceDir,
-    env: {
-      ...process.env,
-      ...providerEnv,
-      ...(request.env ?? {}),
-      HERMES_HOME: hermesHomeDir,
-      HERMES_WRITE_SAFE_ROOT: request.workspaceDir,
-      HERMES_SESSION_SOURCE: "benchlocal-hermesagent-20"
-    },
-    signal: request.signal,
-    timeoutMs: 10 * 60 * 1000
-  });
+  let result;
+  try {
+    result = await runCommand(request.runtime.hermesBin, args, {
+      cwd: request.workspaceDir,
+      env: {
+        ...process.env,
+        ...providerEnv,
+        ...(request.env ?? {}),
+        HERMES_HOME: hermesHomeDir,
+        HERMES_WRITE_SAFE_ROOT: request.workspaceDir,
+        HERMES_SESSION_SOURCE: "benchlocal-hermesagent-20"
+      },
+      signal: request.signal,
+      timeoutMs: 10 * 60 * 1000
+    });
+  } catch (error) {
+    if (error && typeof error.capturedStdout === "string") {
+      await writeFile(stdoutPath, error.capturedStdout, "utf8");
+      await writeFile(stderrPath, typeof error.capturedStderr === "string" ? error.capturedStderr : "", "utf8");
+    }
+    throw error;
+  }
 
   await writeFile(stdoutPath, result.stdout, "utf8");
   await writeFile(stderrPath, result.stderr, "utf8");
@@ -354,19 +369,28 @@ export async function executeHermesAgentRun(request) {
     followUps: request.followUps ?? {}
   }, null, 2), "utf8");
 
-  const result = await runCommand(request.runtime.pythonBin, [AGENT_RUNNER_PATH, requestPath], {
-    cwd: request.workspaceDir,
-    env: {
-      ...process.env,
-      ...providerEnv,
-      ...(request.env ?? {}),
-      HERMES_HOME: hermesHomeDir,
-      HERMES_WRITE_SAFE_ROOT: request.workspaceDir,
-      HERMES_SESSION_SOURCE: "benchlocal-hermesagent-20"
-    },
-    signal: request.signal,
-    timeoutMs: 10 * 60 * 1000
-  });
+  let result;
+  try {
+    result = await runCommand(request.runtime.pythonBin, [AGENT_RUNNER_PATH, requestPath], {
+      cwd: request.workspaceDir,
+      env: {
+        ...process.env,
+        ...providerEnv,
+        ...(request.env ?? {}),
+        HERMES_HOME: hermesHomeDir,
+        HERMES_WRITE_SAFE_ROOT: request.workspaceDir,
+        HERMES_SESSION_SOURCE: "benchlocal-hermesagent-20"
+      },
+      signal: request.signal,
+      timeoutMs: 10 * 60 * 1000
+    });
+  } catch (error) {
+    if (error && typeof error.capturedStdout === "string") {
+      await writeFile(stdoutPath, error.capturedStdout, "utf8");
+      await writeFile(stderrPath, typeof error.capturedStderr === "string" ? error.capturedStderr : "", "utf8");
+    }
+    throw error;
+  }
 
   await writeFile(stdoutPath, result.stdout, "utf8");
   await writeFile(stderrPath, result.stderr, "utf8");
