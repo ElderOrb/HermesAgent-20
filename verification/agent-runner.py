@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import faulthandler
 import json
 import os
 import sys
@@ -172,6 +173,15 @@ def main() -> int:
     request_path = Path(sys.argv[1]).resolve()
     request = _read_json(request_path)
     result_path = Path(request["resultPath"]).resolve()
+
+    # Diagnostic aid for verifier hangs: dump the Python stack every 30s to a
+    # sibling file so a 600s runtime timeout still leaves evidence of where
+    # the runner was blocked. exit=False so long-running scenarios survive.
+    try:
+        _stack_dump_file = (request_path.parent / "agent-runner-stack.txt").open("a", buffering=1)
+        faulthandler.dump_traceback_later(30, repeat=True, file=_stack_dump_file, exit=False)
+    except Exception:
+        pass
 
     os.environ["HERMES_HOME"] = str(Path(request["hermesHomeDir"]).resolve())
     os.environ["HERMES_WRITE_SAFE_ROOT"] = str(Path(request["workspaceDir"]).resolve())
